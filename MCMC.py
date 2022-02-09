@@ -19,7 +19,8 @@ t = np.linspace(0.0, 100, 100)
 C0 = 0
 C, infodict = integrate.odeint(dC_dt, C0, t, full_output = 1)
 C1 = C[0::10]
-likelihood = np.sum(pow(C1-observation,2))
+#likelihood = np.sum(pow(C1-observation,2))
+likelihood = ((1/2*np.pi)**5)*np.exp(-np.sum(pow(C1-observation,2)))
 
 likes = [likelihood]
 vals = [init_val]
@@ -32,7 +33,8 @@ for i in range(10000):
     C, infodict = integrate.odeint(dC_dt, C0, t, full_output = 1)
     C1 = C[0::10]
     
-    likelihood = np.sum(pow(C1-observation,2))
+    #likelihood = np.sum(pow(C1-observation,2))
+    likelihood = ((1/2*np.pi)**5)*np.exp(-np.sum(pow(C1-observation,2)))
     prior_density = scipy.stats.norm(-3, 1).pdf(val_new)
     numer_new = likelihood*prior_density
 
@@ -59,11 +61,14 @@ plt.show()
 
 #Plot histogram after burn out phase
 kf_posterior = vals[-100:]
+true_val = np.log10(0.004)
+kf_prior = np.random.normal(-3,1,100)
 
 f2 = plt.figure()
 
-plt.hist(kf_posterior)
-plt.vlines(np.log10(0.004),0,30,color='red',linestyle='--')
+plt.hist(kf_prior,color='C1',alpha=0.5)
+plt.hist(kf_posterior,color='C0',alpha=1)
+plt.vlines(true_val,0,30,color='red',linestyle='--')
 plt.ylim(0,30)
 
 plt.show()
