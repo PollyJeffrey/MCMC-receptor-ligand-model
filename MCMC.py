@@ -3,72 +3,122 @@ from scipy import integrate
 import scipy.stats
 
 kr = 0.02
-nA = 10
-nB = 20
-
-observation = np.reshape(np.loadtxt('Synthetic_data.txt'),(10,1))
-
-init_val = np.random.normal(-3, 1)
-kf = 10**init_val
+lT = 0.1
+rT = 0.09
 
 def dC_dt(C,t=0):
-   return np.array([kf*(nA-C[0])*(nB-C[0])-kr*C[0]])
+   return np.array([kf*(rT-C[0])*(lT-C[0])-kr*C[0]])
 
-t = np.linspace(0.0, 100, 100)
+observation = np.loadtxt('Synthetic_data.txt').T
+
+init_val = np.random.normal(-2, 1) #Prior for kf
+kf = 10**init_val
+
+t = np.linspace(0.0, 100, 101)
 
 C0 = 0
 C, infodict = integrate.odeint(dC_dt, C0, t, full_output = 1)
-C1 = C[0::10]
-#likelihood = np.sum(pow(C1-observation,2))
-likelihood = ((1/2*np.pi)**5)*np.exp(-np.sum(pow(C1-observation,2)))
+C1 = C[10::10]
+C1_all_rep = np.tile(C1,3)
 
-likes = [likelihood]
+init_sd = 0.001 #initial guess for the standard deviation of the data 
+log_likelihood = np.sum(np.log(scipy.stats.norm(C1_all_rep,init_sd).pdf(observation)))
+
+likes = [log_likelihood]
 vals = [init_val]
+sds = [init_sd]
 
-for i in range(10000):
-    numer_old = likes[-1]*scipy.stats.norm(-3, 1).pdf(vals[-1])
+count = 0
+while count < 200:
+    numer_old = likes[-1] + np.log(scipy.stats.norm(-2, 1).pdf(vals[-1]))
     
-    val_new = np.random.normal(vals[-1], 1)
+    val_new = np.random.normal(vals[-1], 0.1) #Transition function
     kf = 10**val_new
     C, infodict = integrate.odeint(dC_dt, C0, t, full_output = 1)
-    C1 = C[0::10]
-    
-    #likelihood = np.sum(pow(C1-observation,2))
-    likelihood = ((1/2*np.pi)**5)*np.exp(-np.sum(pow(C1-observation,2)))
-    prior_density = scipy.stats.norm(-3, 1).pdf(val_new)
-    numer_new = likelihood*prior_density
+    C1 = C[10::10]
+    C1_all_rep = np.tile(C1,3)
 
-    ratio = numer_new/numer_old
-    alpha = min(1,ratio)
-    
-    if alpha == 1:
-        likes.append(likelihood)
+    sd_new = np.random.normal(sds[-1], 0.01)
+    log_likelihood = np.sum(np.log(scipy.stats.norm(C1_all_rep,sd_new).pdf(observation)))
+
+    prior_density = scipy.stats.norm(-2, 1).pdf(val_new)
+    numer_new = log_likelihood + np.log(prior_density)
+
+    if numer_new > numer_old:
+        likes.append(log_likelihood)
         vals.append(val_new)
+        sds.append(sd_new)
+        count+=1
     else:
         urv = np.random.uniform(0,1)
-        if urv < alpha:
-            likes.append(likelihood)
+        if urv < np.exp(numer_new-numer_old):
+            likes.append(log_likelihood)
             vals.append(val_new)            
+            sds.append(sd_new)
+            count+=1
 
 import matplotlib.pyplot as plt
 
-#Plot sequence of values for kf
-f1 = plt.figure()
-
+#Plot sequence of values for kf and sigma
+f1 = plt.subplots(1,2,figsize=(10,4))
+plt.subplots_adjust(wspace=0.3)
+plt.subplot(1,2,1)
 plt.plot(vals)
+plt.xlabel('Iteration',fontsize=13)
+plt.ylabel('Trace of $k_{f}$',fontsize=13)
+plt.subplot(1,2,2)
+plt.plot(sds)
+plt.xlabel('Iteration',fontsize=13)
+plt.ylabel('Trace of $\sigma$',fontsize=13)
+plt.savefig('Parameter_trace.png',bbox_inches='tight')
 
-plt.show()
+#Plot histograms after burn out phase
+post_size = 50
+kf_posterior = vals[-post_size:]
+kf_true_val = np.log10(0.092)
+sigma_posterior = sds[-post_size:]
+sigma_true_val = 0.003
 
-#Plot histogram after burn out phase
-kf_posterior = vals[-100:]
-true_val = np.log10(0.004)
-kf_prior = np.random.normal(-3,1,100)
+f2 = plt.subplots(1,2,figsize=(10,4))
+plt.subplot(1,2,1)
+plt.hist(kf_posterior,bins=6,color='orange',alpha=1,label=r'$k_{f}$ posterior')
+plt.vlines(kf_true_val,0,18,color='black',linestyle='--', label=r'$k_{f}$ true value')
+plt.xlim(-1.125,-0.975)
+plt.legend(fontsize=13)
+plt.subplot(1,2,2)
+plt.hist(sigma_posterior,bins=6,color='orange',label=r'$\sigma$ posterior')
+plt.vlines(sigma_true_val,0,22,color='black',linestyle='--', label=r'$\sigma$ true value')
+plt.xlim(0.002,0.005)
+plt.legend(fontsize=13)
+plt.savefig('Parameter_posteriors.png',bbox_inches='tight')
 
-f2 = plt.figure()
+#Plot the model predictions using the posterior distributions
+sims = []
+for j in range(post_size):
+    def dC_dt(C,t=0):
+       return np.array([kf*(rT-C[0])*(lT-C[0])-kr*C[0]])
+    
+    kf = 10**kf_posterior[j]
+    out = integrate.odeint(dC_dt, C0, t)
+    sims.append(out)
 
-plt.hist(kf_prior,color='C1',alpha=0.5)
-plt.hist(kf_posterior,color='C0',alpha=1)
-plt.vlines(true_val,0,30,color='red',linestyle='--')
-plt.ylim(0,30)
+all_sims = np.hstack(sims)    
+med = np.median(all_sims,axis=1)
+upp = np.percentile(all_sims,97.5,axis=1)
+low = np.percentile(all_sims,2.5,axis=1)
 
-plt.show()
+tt = np.linspace(10,100,10)
+
+fig = plt.figure(figsize=(7,5),dpi=100)
+ax = fig.add_subplot(111)
+ax.plot(t, med, label='Model median', color='black')
+ax.fill_between(t, upp, low, color='grey', alpha=0.3, label='Model 95% CI',zorder=1)
+for rep in range(3):
+    ax.scatter(tt, observation[:,rep], label='Data repeat ' + str(rep+1))
+
+plt.legend(loc=4,fontsize=13)
+plt.title('Model fit to the data',fontsize=13)
+plt.ylabel('Concentration of complex (nM)',fontsize=13)
+plt.xlabel('Time (secs)',fontsize=13)
+plt.savefig('Model_fit.png',bbox_inches='tight')
+
