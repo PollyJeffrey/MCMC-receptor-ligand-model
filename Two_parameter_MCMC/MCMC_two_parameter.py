@@ -67,8 +67,8 @@ while count < 500:
 import matplotlib.pyplot as plt
 
 #Plot sequence of values for kf and sigma
-f1 = plt.subplots(1,3,figsize=(12,4))
-plt.subplots_adjust(wspace=0.3)
+f1 = plt.subplots(1,3,figsize=(12,3.5),dpi=120)
+plt.subplots_adjust(wspace=0.35)
 plt.subplot(1,3,1)
 plt.plot(kf_vals)
 plt.xlabel('Iteration',fontsize=13)
@@ -84,7 +84,7 @@ plt.ylabel('Trace of $\sigma$',fontsize=13)
 plt.savefig('Parameter_trace_2param.png',bbox_inches='tight')
 
 #Plot histograms after burn out phase
-post_size = 50
+post_size = 200
 kf_posterior = kf_vals[-post_size:]
 kr_posterior = kr_vals[-post_size:]
 kf_true_val = np.log10(0.092)
@@ -92,23 +92,59 @@ kr_true_val = np.log10(0.02)
 sigma_posterior = sds[-post_size:]
 sigma_true_val = 0.003
 
-f2 = plt.subplots(1,3,figsize=(12,4))
+f2 = plt.subplots(1,3,figsize=(12,4),dpi=120)
 plt.subplot(1,3,1)
 plt.hist(kf_posterior,bins=6,color='orange',alpha=1,label=r'$k_{f}$ posterior')
-plt.vlines(kf_true_val,0,18,color='black',linestyle='--', label=r'$k_{f}$ true value')
-#plt.xlim(-1.125,-0.975)
+plt.vlines(kf_true_val,0,70,color='black',linestyle='--', label=r'$k_{f}$ true value')
+plt.ylim(0,70)
 plt.legend(fontsize=13)
 plt.subplot(1,3,2)
 plt.hist(kr_posterior,bins=6,color='orange',alpha=1,label=r'$k_{r}$ posterior')
-plt.vlines(kr_true_val,0,18,color='black',linestyle='--', label=r'$k_{r}$ true value')
-#plt.xlim(-1.125,-0.975)
+plt.vlines(kr_true_val,0,70,color='black',linestyle='--', label=r'$k_{r}$ true value')
+plt.ylim(0,70)
 plt.legend(fontsize=13)
 plt.subplot(1,3,3)
 plt.hist(sigma_posterior,bins=6,color='orange',label=r'$\sigma$ posterior')
-plt.vlines(sigma_true_val,0,22,color='black',linestyle='--', label=r'$\sigma$ true value')
-#plt.xlim(0.002,0.005)
+plt.vlines(sigma_true_val,0,70,color='black',linestyle='--', label=r'$\sigma$ true value')
+plt.ylim(0,70)
 plt.legend(fontsize=13)
 plt.savefig('Parameter_posteriors_2param.png',bbox_inches='tight')
+
+#Plot kernel density estimates of the posterior distributions
+import seaborn as sns
+
+f2 = plt.subplots(1,3,figsize=(12,4),dpi=120)
+plt.subplot(1,3,1)
+prior = np.random.normal(-2,1,10**3)
+sns.kdeplot(prior, shade=True, color='gray', alpha=0.6, label=r'$k_{f}$ prior')
+sns.kdeplot(kf_posterior, shade=True, color='green', alpha=0.6, label=r'$k_{f}$ posterior')
+plt.vlines(kf_true_val,0,7,color='black',linestyle='--', label=r'$k_{f}$ true value')
+plt.legend(fontsize=12,loc=2)
+plt.ylabel('Density',fontsize=12)
+plt.xlabel('$Log_{10}(param)$',fontsize=12)
+plt.xlim(-4,0)
+plt.ylim(0,7)
+
+plt.subplot(1,3,2)
+prior = np.random.normal(-2,1,10**3)
+sns.kdeplot(prior, shade=True, color='gray', alpha=0.6, label=r'$k_{r}$ prior')
+sns.kdeplot(kr_posterior, shade=True, color='green', alpha=0.6, label=r'$k_{r}$ posterior')
+plt.vlines(kr_true_val,0,4,color='black',linestyle='--', label=r'$k_{r}$ true value')
+plt.legend(fontsize=12,loc=2)
+plt.xlabel('$Log_{10}(param)$',fontsize=12)
+plt.ylabel('')
+plt.xlim(-4,0)
+plt.ylim(0,4)
+      
+plt.subplot(1,3,3)
+sns.kdeplot(sigma_posterior, shade=True, color='green', alpha=0.6, label=r'$\sigma$ posterior')
+plt.vlines(sigma_true_val,0,700,color='black',linestyle='--', label=r'$\sigma$ true value')
+plt.legend(fontsize=12)
+plt.xlabel('$param$',fontsize=12)   
+plt.ylabel('')
+plt.ylim(0,700)
+
+plt.savefig('Parameter_KDEs.png', bbox_inches='tight')
 
 #Plot the model predictions using the posterior distributions
 sims = []
@@ -128,7 +164,7 @@ low = np.percentile(all_sims,2.5,axis=1)
 
 tt = np.linspace(10,100,10)
 
-fig = plt.figure(figsize=(7,5),dpi=100)
+fig = plt.figure(figsize=(7,5),dpi=120)
 ax = fig.add_subplot(111)
 ax.plot(t, med, label='Model median', color='black')
 ax.fill_between(t, upp, low, color='grey', alpha=0.3, label='Model 95% CI',zorder=1)
